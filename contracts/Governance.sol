@@ -38,6 +38,7 @@ contract Shareholders {
         govenor = new Govenor();
         unallocated_shares = 0;
         maximum_lock_duration = 7 days;
+        minimum_quarum_percentage = 50;
     }
 
     modifier onlygovenor { if (msg.sender != address(govenor)) throw; _ }
@@ -49,6 +50,20 @@ contract Shareholders {
     function get_num_shares(address _address) constant returns (uint) {
         if (!is_shareholder(_address)) throw;
         return uint(GroveLib.getNodeValue(shareholders, bytes32(_address)));
+    }
+
+    uint public minimum_quarum_percentage;
+
+    uint constant MAXIMUM_QUORUM_PERCENTAGE = 66;
+
+    function set_minimum_quorum_percentage(uint value) public onlygovenor {
+        if (value > MAXIMUM_QUORUM_PERCENTAGE) throw;
+        minimum_quarum_percentage = value;
+    }
+
+    function get_required_quorum_size() constant returns (uint) {
+        uint num_active_shares = INITIAL_SHARES - unallocated_shares;
+        return num_active_shares * minimum_quarum_percentage / 100;
     }
 
     function set_maximum_lock_duration(uint duration) public onlygovenor {
@@ -224,10 +239,20 @@ contract Boardroom {
         uint created_at;
 
         address contract_address;
-        bool was_executed;
 
+        // state
+        bool was_executed;
+        bool is_finalized;
+
+        // vote tracking
         mapping (address => bool) did_vote;
         mapping (address => bytes32) commit_hashes;
+        
+        // The percentage required for the vote to pass
+        uint pass_percentage;
+        bool did_pass;
+
+        // Tally of the votes
         uint yes_votes;
         uint no_votes;
         uint abstain_votes;
@@ -306,11 +331,55 @@ contract Boardroom {
             VoteRevealed(motion_id, msg.sender, vote);
     }
 
+    function did_motion_pass(uint motion_id) constant returns (bool) {
+            // Invalid motion
+            if (motion_id >= _next_id) throw;
+
+            var motion = motions[motion_id];
+
+            // Reveal period has not ended
+            if (now < motion.created_at + voting_period_duration + reveal_period_duration) throw;
+
+            uint total_votes = motion.yes_votes + motion.no_votes + motion.abstain_votes;
+
+            // No Quorum
+            if (total_votes < shareholders.get_required_quorum_size()) {
+                    return false;
+            }
+
+            uint yes_percentage = motion.yes_votes * 100 / total_votes;
+            return yes_percentage >= motion.pass_percentage;
+    }
+
+    function finalize_motion(uint motion_id) public onlyshareholder {
+            // Invalid motion
+            if (motion_id >= _next_id) throw;
+
+            var motion = motions[motion_id];
+
+            // Already finalized
+            if (motion.is_finalized) throw;
+
+            // Reveal period has not ended
+            if (now < motion.created_at + voting_period_duration + reveal_period_duration) throw;
+
+            motion.is_finalized = true;
+            motion.did_pass = did_motion_pass(motion_id);
+    }
+
+    event MotionExecuted(uint motion_id);
+
     function execute_motion(uint motion_id) public onlyshareholder {
             // Invalid motion
             if (motion_id >= _next_id) throw;
 
             var motion = motions[motion_id];
+
+            // Not finalized
+            if (!motion.is_finalized) throw;
+
+            // Didn't pass
+            if (!motion.did_pass) throw;
 
             // Execute period has not started
             if (now < motion.created_at + voting_period_duration + reveal_period_duration) throw;
@@ -323,6 +392,7 @@ contract Boardroom {
 
             // Execute the motion
             motion.contract_address.call(bytes4(sha3("execute()")));
+            MotionExecuted(motion_id);
     }
 
     function __execute(bytes call_data) public {
