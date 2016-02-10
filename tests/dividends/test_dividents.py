@@ -1,6 +1,8 @@
 import decimal
+import time
 import itertools
 import collections
+import random
 
 
 deploy_contracts = [
@@ -45,21 +47,17 @@ def compute_dividends(init_balances, transfers, earnings):
             raise ValueError("Insufficient balance")
         balance_lookup[_from] -= value
         balance_lookup[to] += value
-        balance_history[_from].append((when + 1, balance_lookup[_from]))
-        balance_history[to].append((when + 1, balance_lookup[to]))
-
-    print dict(balance_history)
+        balance_history[_from].append((when, balance_lookup[_from]))
+        balance_history[to].append((when, balance_lookup[to]))
 
     dividends = collections.defaultdict(int)
 
     total_supply = decimal.Decimal(sum(zip(*init_balances)[1]))
 
     for when, value in earnings:
-        print when
         for acct in balance_history.keys():
             bal = balance_at(when, balance_history[acct])
             dividends[acct] += balance_at(when, balance_history[acct]) * value
-            print "{0}: ({1}/{2}) +{3}".format(acct, bal, total_supply, bal * value)
     return set(dividends.items())
 
 
@@ -171,9 +169,78 @@ def test_shareholder_db(deployed_contracts, deploy_client, accounts,
 
     db.processDividends.s(deploy_coinbase)
     db.processDividends.s(accounts[1])
+    db.processDividends.s(accounts[1])
 
     assert db.hasPendingDividends(deploy_coinbase) is False
     assert db.hasPendingDividends(accounts[1]) is False
 
     assert db.dividends(deploy_coinbase) == 2500000
-    assert db.dividends(deploy_coinbase) == 500000
+    assert db.dividends(accounts[1]) == 500000
+
+
+def test_dynamic_shareholder_db(deployed_contracts, deploy_client, accounts,
+                                deploy_coinbase, denoms):
+    db = deployed_contracts.MillionSharesDB
+
+    db.addShareholder.s(deploy_coinbase)
+    db.allocateShares.s(deploy_coinbase, db.unallocatedShares())
+
+    assert db.balanceOf(deploy_coinbase) == 1000000
+
+    deploy_client.async_timeout = 60
+
+    init_balances = (
+        (accounts[0], 1000000),
+    )
+    earnings = []
+    transfers = []
+    shareholders = set([accounts[0]])
+
+    def transfer():
+        _from = random.choice(list(shareholders))
+        to = random.choice(list(set(accounts).difference([_from])))
+        amount = random.randint(0, db.balanceOf(_from))
+
+        if to not in shareholders:
+            db.addShareholder(to)
+            shareholders.add(to)
+        txn_h, txn_r = db.transfer.s(to, amount, _from=_from)
+        transfers.append((
+            int(txn_r['blockNumber'], 16),
+            _from,
+            to,
+            amount,
+        ))
+
+    def deposit():
+        amount = random.randint(1, 100)
+        txn_h = deploy_client.send_transaction(
+            to=db._meta.address,
+            value=amount,
+        )
+        txn_r = deploy_client.wait_for_transaction(txn_h)
+        earnings.append((
+            int(txn_r['blockNumber'], 16),
+            amount,
+        ))
+
+    for i in range(10):
+        if random.randint(0, i) <= i ** (0.5):
+            transfer()
+        else:
+            deposit()
+
+    receipts = []
+    gas = []
+
+    for shareholder in shareholders:
+        txn_h, txn_r = db.processDividends.s(shareholder)
+        receipts.append(txn_r)
+        gas.append(int(txn_r['gasUsed'], 16))
+
+    expected = compute_dividends(init_balances, transfers, earnings)
+    actual = {
+        (shareholder, db.dividends(shareholder))
+        for shareholder in shareholders
+    }
+    assert expected == actual

@@ -75,7 +75,26 @@ contract ShareholderDB is ShareholderDBInterface {
         return (deposits.length > 0 && depositIterator[who] <= deposits.length - 1);
     }
 
-    function processDividends(address who) {
+    uint constant GAS_RESERVE = 100000;
+
+    function processDividends(address who) public returns (uint iTimes) {
+        return processDividends(who, 0);
+    }
+
+    function processDividends(address who, uint nTimes) public returns (uint iTimes) {
+        while (hasPendingDividends(who) && (nTimes == 0 || iTimes < nTimes) && msg.gas > GAS_RESERVE) {
+            // This uses .call(..) to isolate any possible out-of-gas exeception.
+            if (address(this).call.gas(msg.gas - GAS_RESERVE)(bytes4(sha3("_processDividends(address)")), who)) {
+                iTimes += 1;
+            }
+            else {
+                break;
+            }
+        }
+        return iTimes;
+    }
+
+    function _processDividends(address who) public {
         // No deposits
         if (deposits.length == 0) return;
 
@@ -90,29 +109,36 @@ contract ShareholderDB is ShareholderDBInterface {
 
         uint balance;
 
+
         if (balanceRecords[who].length == 0) {
+            // No records of previous balance transfers so current balance should be used.
             balance = balanceOf(who);
         }
         else {
-            while (balanceRecords[who][historyIterator[who]] < depositIterator[who]) {
+            while (true) {
+                var historyIdx = historyIterator[who];
 
-                if (historyIterator[who] >= balanceRecords[who].length) {
-                    // We are at the current balance
+                if (historyIdx > balanceRecords[who].length - 1) {
+                    // no more history records, use current balance.
                     balance = balanceOf(who);
                     break;
                 }
+                else if (balanceRecords[who][historyIdx] >= depositIterator[who]) {
+                    // the current record is valid
+                    balance = balanceHistory[who][historyIdx];
+                    break;
+                }
                 else {
+                    // move onto the next record
                     historyIterator[who] += 1;
                 }
-            // TODO
-            }
-
-            if (balanceRecords[who][historyIterator[who]] >= depositIterator[who]) {
-                balance = balanceHistory[who][balanceRecords[who][historyIterator[who]]];
             }
         }
 
-        dividends[who] += depositValue * balance;
+        uint dividendValue = deposits[depositIterator[who]] * balance;
+
+        dividends[who] += dividendValue;
+        unclaimedDividends -= dividendValue;
 
         depositIterator[who] += 1;
     }
