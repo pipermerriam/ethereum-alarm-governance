@@ -7,7 +7,7 @@ library GroveLib {
         /*
          *  Indexes for ordered data
          *
-         *  Address: 0x661d36b10dd5b879e496edaf860327812fb81e48
+         *  Address: 0x7c1eb207c07e7ab13cf245585bd03d0fa478d034
          */
         struct Index {
                 bytes32 root;
@@ -233,7 +233,7 @@ library GroveLib {
         /// @param index The index that should be searched
         /// @param id The unique identifier of the data element to check for.
         function exists(Index storage index, bytes32 id) constant returns (bool) {
-            return (index.nodes[id].id == id);
+            return (index.nodes[id].height > 0);
         }
 
         /// @dev Remove the node for the given unique identifier from the index.
@@ -347,6 +347,7 @@ library GroveLib {
             nodeToDelete.parent = 0x0;
             nodeToDelete.left = 0x0;
             nodeToDelete.right = 0x0;
+            nodeToDelete.height = 0;
 
             // Walk back up the tree rebalancing
             if (rebalanceOrigin != 0x0) {
