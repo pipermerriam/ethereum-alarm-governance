@@ -17,3 +17,12 @@ governance.
 ## Status
 
 Not in any way ready for public consumption.
+
+
+## Components
+
+- ShareholderDB - ERC20 compliant token system to be used as Shares.
+- DividendDB    - Handle dividends allocation based on shares.
+- Govenor       - Proxy Contract that "owns" stuff
+- Boardroom     - Democratic voting to direct the actions of the Govenor contract.
+- Motion        - A piece of on-chain logic that can execute actions through the Govenor.
