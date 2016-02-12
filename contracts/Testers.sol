@@ -15,3 +15,28 @@ contract DividendsDBTest is DividendDBBase {
         token = ERC20(_address);
     }
 }
+
+
+contract CallDataLogger {
+    bool public wasCalled;
+    address public msgSender;
+    bytes public data;
+    uint public value;
+    uint public gas;
+
+    function() public {
+        gas = msg.gas;
+        value = msg.value;
+        msgSender = msg.sender;
+        data = msg.data;
+        wasCalled = true;
+    }
+
+    function reset() public {
+        gas = 0;
+        value = 0;
+        msgSender = 0x0;
+        data.length = 0;
+        wasCalled = false;
+    }
+}

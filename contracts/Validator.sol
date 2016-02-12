@@ -10,7 +10,7 @@ contract ValidatorInterface is transferableInterface {
     function setMinimumQuorum(uint value) public onlyowner;
     function setMinimumDuration(uint value) public onlyowner;
     function setMinimumPassPercentage(uint value) public onlyowner;
-    function validateMotion(address _address) constant returns (bool);
+    function validate(address _address) constant returns (bool);
 }
 
 
@@ -31,7 +31,7 @@ contract Validator is transferable, ValidatorInterface {
         minimumPassPercentage = value;
     }
 
-    function validateMotion(address _address) constant returns (bool) {
+    function validate(address _address) constant returns (bool) {
         var motion = MotionInterface(_address);
 
         if (motion.quorumSize() < minimumQuorum) return false;

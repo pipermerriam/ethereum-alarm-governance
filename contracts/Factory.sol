@@ -2,10 +2,10 @@ import {transferableInterface, transferable} from "contracts/owned.sol";
 
 
 contract FactoryInterface is transferableInterface {
-    event Constructed(address addr, bytes32 argsHash);
+    event Deployed(address addr);
 
-    function buildMotionContract(address creator, address _address) public onlyowner returns (address);
-    function deployMotionContract(address creator, address _address) internal returns (address);
+    function deployContract(address creator, address _address) public onlyowner returns (address);
+    function buildContract(address creator, address _address) internal returns (address);
 }
 
 
@@ -23,7 +23,9 @@ contract FactoryBase is transferable, FactoryInterface {
         compilerFlags = _compilerFlags;
     }
 
-    function buildMotionContract(address creator, address _address) public onlyowner returns (address) {
-        return deployMotionContract(creator, _address);
+    function deployContract(address creator, address _address) public onlyowner returns (address) {
+        var addr = buildContract(creator, _address);
+        Deployed(addr);
+        return addr;
     }
 }

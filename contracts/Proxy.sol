@@ -12,8 +12,8 @@ contract ProxyInterface is transferableInterface {
         bool wasSuccessful;
     }
 
-    function ____forward(address to, bytes callData, uint value, uint gas) internal returns (bool);
-    function __forward(address to, bytes callData, uint value, uint gas) onlyowner returns (bool);
+    function ____forward(address to, uint value, uint gas, bytes callData) internal returns (bool);
+    function __forward(address to, uint value, uint gas, bytes callData) onlyowner returns (bool);
 }
 
 
@@ -25,10 +25,11 @@ contract Proxy is transferable, ProxyInterface {
     uint public numActions;
     mapping (uint => Action) public actions;
 
-    function ____forward(address to, bytes callData, uint value, uint gas) internal returns (bool) {
+    function ____forward(address to, uint value, uint gas, bytes callData) internal returns (bool) {
         numActions += 1;
 
         var action = actions[numActions];
+        action.id = numActions;
         action.owner = owner;
         action.to = to;
         action.callData = callData;
@@ -36,7 +37,7 @@ contract Proxy is transferable, ProxyInterface {
         action.gas = gas;
 
         if (gas > 0 && value > 0) {
-            action.wasSuccessful = to.call.gas(gas).value(value)(callData);
+            action.wasSuccessful = to.call.value(value).gas(gas)(callData);
         }
         else if (value > 0) {
             action.wasSuccessful = to.call.value(value)(callData);
@@ -51,8 +52,8 @@ contract Proxy is transferable, ProxyInterface {
         return action.wasSuccessful;
     }
 
-    function __forward(address to, bytes callData, uint value, uint gas) onlyowner returns (bool) {
-        return ____forward(to, callData, value, gas);
+    function __forward(address to, uint value, uint gas, bytes callData) onlyowner returns (bool) {
+        return ____forward(to, value, gas, callData);
     }
 
     function () {

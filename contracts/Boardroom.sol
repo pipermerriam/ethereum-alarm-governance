@@ -1,36 +1,32 @@
-import "libraries/GroveLib.sol";
-
 import {transferableInterface, transferable} from "contracts/owned.sol";
 import {ProxyInterface} from "contracts/Proxy.sol";
 import {ShareholderDBInterface} from "contracts/ShareholderDB.sol";
+import {ShareholderDBSubscriber} from "contracts/ShareholderDBSubscriber.sol";
+import {MotionDBSubscriber} from "contracts/MotionDBSubscriber.sol";
 import {DividendDBInterface} from "contracts/ShareholderDB.sol";
-import {ValidatorInterface} from "contracts/Validator.sol";
-import {FactoryInterface} from "contracts/Factory.sol";
-import {MotionInterface} from "contracts/Motion.sol";
+import {MotionDBInterface} from "contracts/MotionDB.sol";
 
 
-contract BoardroomInterface is ProxyInterface {
+contract BoardroomInterface is ProxyInterface, ShareholderDBSubscriber, MotionDBSubscriber {
     ShareholderDBInterface public shareholderDB;
     DividendDBInterface public dividendsDB;
-    FactoryInterface public factory;
-    ValidatorInterface public validator;
+    MotionDBInterface public motionDB;
 
-    function setMinimumDebateDuration(uint duration) public onlyowner;
-    function getMinimumDebateDuration(uint duration) constant returns (uint);
-
+    /*
+     * These are technically executable via the ProxyInterface but they exist
+     * as conveninece functions for other contracts to use if they need the
+     * interface.
+     */
     function setShareholderDB(address _address) public onlyowner;
+    function transferShareholderDB(address newOwner) public onlyowner;
     function setDividendDB(address _address) public onlyowner;
-
-    modifier onlyshareholder { if (!shareholderDB.isShareholder(msg.sender)) throw; _ }
-    modifier onlyfactory { if (msg.sender != address(factory)) throw; _ }
-
-    event MotionCreated(address motion);
+    function transferDividendDB(address newOwner) public onlyowner;
+    function setMotionDB(address _address) public onlyowner;
+    function transferMotionDB(address newOwner) public onlyowner;
 }
 
 
 contract Boardroom is transferable, BoardroomInterface {
-    using GroveLib for GroveLib.Index;
-
     /*
      *  Database management
      */
@@ -38,39 +34,35 @@ contract Boardroom is transferable, BoardroomInterface {
         shareholderDB = ShareholderDBInterface(_address);
     }
 
+    function transferShareholderDB(address newOwner) public onlyowner {
+        shareholderDB.transferOwnership(newOwner);
+    }
+
+    function getShareholderDB() constant returns (address) {
+        return shareholderDB;
+    }
+
     function setDividendDB(address _address) public onlyowner {
         dividendsDB = DividendDBInterface(_address);
     }
 
-    function setFactory(address _address) public onlyowner {
-        factory = FactoryInterface(_address);
+    function transferDividendDB(address newOwner) public onlyowner {
+        dividendsDB.transferOwnership(newOwner);
     }
 
-    GroveLib.Index motions;
-
-    function isKnownMotion(address _address) constant returns (bool) {
-        return motions.exists(bytes32(_address));
+    function setMotionDB(address _address) public onlyowner {
+        motionDB = MotionDBInterface(_address);
     }
 
-    function createMotion(address _address) public onlyfactory {
-        var motion = factory.buildMotionContract(msg.sender, _address);
-        motions.insert(bytes32(motion), int(block.number));
+    function getMotionDB() constant returns (address) {
+        return motionDB;
     }
 
-    function validateMotion(address _address) public onlyshareholder {
-        if (!motions.exists(bytes32(_address))) throw;
-
-        var motion = MotionInterface(_address);
-
-        if (validator.validateMotion(_address)) {
-            motion.accept();
-        }
-        else {
-            motion.reject();
-        }
+    function transferMotionDB(address newOwner) public onlyowner {
+        motionDB.transferOwnership(newOwner);
     }
 
-    function __proxy_motion(bytes call_data) public {
-        // TODO: allow motions to execute through this function.
+    function __proxy_motion(address to, uint value, uint gas, bytes callData) public onlymotion  returns (bool) {
+        return ____forward(to, value, gas, callData);
     }
 }

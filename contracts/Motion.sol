@@ -155,7 +155,11 @@ contract MotionFactory is transferable, FactoryBase {
     /*
      *  Voting Configuration
      */
-    function deployMotionContract(address creator, address _address) internal returns (address) {
+    function MotionFactory(string _sourceURI, string _compilerVersion, string _compilerFlags) 
+             FactoryBase(_sourceURI, _compilerVersion, _compilerFlags) {
+    }
+
+    function buildContract(address creator, address _address) internal returns (address) {
         var motion = new Motion(msg.sender, _address);
         motion.transferOwnership(owner);
         return address(motion);
