@@ -1,8 +1,7 @@
-contract GovenorInterface {
-    address public owner;
+import {transferableInterface, transferable} from "contracts/owned.sol";
 
-    event OwnershipTransfer(address oldOwner, address newOwner);
 
+contract ProxyInterface is transferableInterface {
     struct Action {
         uint id;
         address owner;
@@ -13,25 +12,23 @@ contract GovenorInterface {
         bool wasSuccessful;
     }
 
-    modifier onlyowner { if (msg.sender != owner) throw; _ }
-
+    function ____forward(address to, bytes callData, uint value, uint gas) internal returns (bool);
     function __forward(address to, bytes callData, uint value, uint gas) onlyowner returns (bool);
-    function transfer_owner(address new_owner) onlyowner;
 }
 
 
-contract Govenor is GovenorInterface {
-    function Govenor() {
+contract Proxy is transferable, ProxyInterface {
+    function Proxy() {
         owner = msg.sender;
     }
 
-    uint id;
+    uint public numActions;
     mapping (uint => Action) public actions;
 
-    function __forward(address to, bytes callData, uint value, uint gas) onlyowner returns (bool) {
-        id += 1;
+    function ____forward(address to, bytes callData, uint value, uint gas) internal returns (bool) {
+        numActions += 1;
 
-        var action = actions[id];
+        var action = actions[numActions];
         action.owner = owner;
         action.to = to;
         action.callData = callData;
@@ -54,9 +51,8 @@ contract Govenor is GovenorInterface {
         return action.wasSuccessful;
     }
 
-    function transfer_owner(address new_owner) onlyowner {
-        OwnershipTransfer(owner, new_owner);
-        owner = new_owner;
+    function __forward(address to, bytes callData, uint value, uint gas) onlyowner returns (bool) {
+        return ____forward(to, callData, value, gas);
     }
 
     function () {

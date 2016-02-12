@@ -1,8 +1,8 @@
 import {ERC20} from "contracts/ERC20.sol";
-import {owned} from "contracts/owned.sol";
+import {transferableInterface, transferable} from "contracts/owned.sol";
 
 
-contract DividendDBInterface is owned {
+contract DividendDBInterface is transferableInterface {
     // Log of every deposit made to the contract
     uint[] public deposits;
 
@@ -54,7 +54,7 @@ contract DividendDBInterface is owned {
 }
 
 
-contract DividendDBBase is DividendDBInterface {
+contract DividendDBBase is transferable, DividendDBInterface {
     /*
      *  Constant Getters
      */

@@ -1,15 +1,19 @@
 import {GroveLib} from "libraries/GroveLib.sol";
 import {ERC20} from "contracts/ERC20.sol";
-import {owned} from "contracts/owned.sol";
+import {transferableInterface, transferable} from "contracts/owned.sol";
 import {DividendDBInterface} from "contracts/DividendDB.sol";
 
 
-contract ShareholderDBInterface is owned {
+contract ShareholderDBInterface is transferableInterface, ERC20 {
     event ShareholderAdded(address who);
     event ShareholderRemoved(address who);
     event SharesAllocated(address to, uint amount);
 
     function isShareholder(address _address) constant returns (bool);
+    function getJoinBlock(address _address) constant returns (uint);
+    function getNextShareholder(address _address) constant returns (address);
+    function getPreviousShareholder(address _address) constant returns (address);
+    function queryShareholders(bytes2 operator, uint blockNumber) constant returns (address);
 
     function addShareholder(address who) public onlyowner;
     function removeShareholder(address who) public onlyowner;
@@ -17,15 +21,20 @@ contract ShareholderDBInterface is owned {
 }
 
 
-contract ShareholderDB is ShareholderDBInterface, ERC20 {
+contract ShareholderDB is transferable, ShareholderDBInterface {
     using GroveLib for GroveLib.Index;
 
-    // DB of shareholder balances.
-    // Note: using Grove so that shareholders and balances are easily
-    // enumerable.
-    GroveLib.Index shareholders;
-
+    /*
+     *  Dividends integration
+     */
     DividendDBInterface dividendsDB;
+
+    function setBalance(address who, uint balance) internal {
+        if (address(dividendsDB) != 0x0) {
+            dividendsDB.recordBalance(who);
+        }
+        balances[who] = balance;
+    }
 
     uint public _id;
 
@@ -44,35 +53,31 @@ contract ShareholderDB is ShareholderDBInterface, ERC20 {
     /*
      *  ERC20
      */
-    function totalSupply() constant returns (uint supply) {
+    mapping (address => uint) balances;
+    mapping (address => mapping (address => uint)) allowances;
+
+    function totalSupply() constant returns (uint) {
         return supply;
     }
 
     function balanceOf(address _address) constant returns (uint) {
-        // TODO: make sure this isn't returning negative values which would get
-        // cast to extremely high unsigned values.
-        return uint(shareholders.getNodeValue(bytes32(_address)));
+        return balances[_address];
     }
 
     function allowance(address owner, address spender) constant returns (uint _allowance) {
-        throw;
+        return allowances[owner][spender];
     }
 
     event Transfer(address indexed from, address indexed to, uint value);
 
-    function setBalance(address who, uint balance) internal {
-        dividendsDB.recordBalance(who);
-        shareholders.insert(bytes32(who), int(balance));
-    }
-
     function transfer(address to, uint value) returns (bool ok) {
         // cannot transfer shares to a non-shareholder
-        if (!isShareholder(to) || !isShareholder(msg.sender)) return;
+        if (!isShareholder(to) || !isShareholder(msg.sender)) return false;
 
         uint fromBalance = balanceOf(msg.sender);
 
         // insufficient balance
-        if (value == 0 || value > fromBalance) throw;
+        if (value == 0 || value > fromBalance) return false;
 
         uint toBalance = balanceOf(to);
 
@@ -88,21 +93,66 @@ contract ShareholderDB is ShareholderDBInterface, ERC20 {
 
         // Log the transfer
         Transfer(msg.sender, to, value);
+
+        return true;
     }
 
     event Approval(address indexed owner, address indexed spender, uint value);
 
     function transferFrom(address from, address to, uint value) returns (bool ok) {
-        throw;
+        // insufficient allowance
+        if (allowances[from][msg.sender] < value) return false;
+
+        // not shareholder
+        if (!isShareholder(from) || !isShareholder(to)) return false;
+
+        var fromBalance = balanceOf(from);
+
+        // insufficient balance
+        if (value == 0 || fromBalance < value) return false;
+
+        var toBalance = balanceOf(to);
+
+        fromBalance -= value;
+        toBalance += value;
+        allowances[from][msg.sender] -= value;
+
+        setBalance(from, fromBalance);
+        setBalance(to, toBalance);
+
+        Transfer(from, to, value);
+
+        return true;
     }
 
     function approve(address spender, uint value) returns (bool ok) {
-        throw;
+        allowances[msg.sender][spender] = value;
+        Approval(msg.sender, spender, value);
+        return true;
     }
 
     /*
      *  Membership management.
      */
+    // DB of shareholder join blocks.
+    GroveLib.Index shareholders;
+
+    function getJoinBlock(address _address) constant returns (uint) {
+        return uint(shareholders.getNodeValue(bytes32(_address)));
+    }
+
+    function queryShareholders(bytes2 operator, uint blockNumber) constant returns (address) {
+        return address(shareholders.query(operator, int(blockNumber)));
+    }
+
+    function getNextShareholder(address _address) constant returns (address) {
+        return address(shareholders.getNextNode(bytes32(_address)));
+    }
+
+    function getPreviousShareholder(address _address) constant returns (address) {
+        return address(shareholders.getPreviousNode(bytes32(_address)));
+    }
+
     function isShareholder(address _address) constant returns (bool) {
         return shareholders.exists(bytes32(_address));
     }
@@ -111,8 +161,11 @@ contract ShareholderDB is ShareholderDBInterface, ERC20 {
         // already a shareholder
         if (isShareholder(who)) throw;
 
+        // cannot add empty address as shareholder
+        if (who == 0x0) throw;
+
         // add the shareholder
-        setBalance(who, 0);
+        shareholders.insert(bytes32(who), int(block.number));
 
         // log the addition
         ShareholderAdded(who);
@@ -120,7 +173,7 @@ contract ShareholderDB is ShareholderDBInterface, ERC20 {
 
     function removeShareholder(address who) public onlyowner {
         // not a shareholder
-        if (!isShareholder(who)) return;
+        if (!isShareholder(who)) throw;
 
         // move any remaining shares to the unallocatedShares pool
         var amount = balanceOf(who);
@@ -131,7 +184,7 @@ contract ShareholderDB is ShareholderDBInterface, ERC20 {
         }
 
         // record history
-        dividendsDB.recordBalance(who);
+        setBalance(who, 0);
 
         // remove the shareholder
         shareholders.remove(bytes32(who));
