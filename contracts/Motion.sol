@@ -1,5 +1,6 @@
-import {FactoryBase} from "contracts/Factory.sol";
 import {transferableInterface, transferable} from "contracts/owned.sol";
+import {FactoryBase} from "contracts/Factory.sol";
+import {ShareholderDBInterface} from "contracts/ShareholderDB.sol";
 
 
 contract ExecutableInterface is transferableInterface {
@@ -26,7 +27,8 @@ contract MotionInterface is transferableInterface {
     }
 
     enum Status {
-        Unverified,
+        NeedsConfiguration,
+        NeedsValidation,
         Open,
         Tally,
         Passed,
@@ -35,22 +37,22 @@ contract MotionInterface is transferableInterface {
         Executed
     }
 
-    address createdBy;
-    uint createdAt;
-    uint openAt;
-    uint duration;
-    uint quorumSize;
+    address public createdBy;
+    uint public createdAt;
+    uint public openAt;
+    uint public duration;
+    uint public quorumSize;
+    // The percentage required for the vote to pass
+    uint8 public passPercentage;
 
-    ExecutableInterface executable;
+
+    ExecutableInterface public executable;
 
     // state
-    Status status;
+    Status public status;
 
     // vote tracking
-    mapping (address => bool) didVote;
-
-    // The percentage required for the vote to pass
-    uint8 passPercentage;
+    mapping (address => bool) public didVote;
 
     struct Tally {
         address[] voters;
@@ -59,18 +61,23 @@ contract MotionInterface is transferableInterface {
     }
 
     // Tally of the votes
-    Tally yesVotes;
-    Tally noVotes;
-    Tally abstainVotes;
+    Tally public yesVotes;
+    Tally public noVotes;
+    Tally public abstainVotes;
 
-    ShareholderDBInterface shareholderDB;
+    ShareholderDBInterface public shareholderDB;
 
     modifier onlyshareholder { if (!shareholderDB.isShareholder(msg.sender)) throw; _ }
-    modifier onlystatus(Status _status) { if (!status == _status) throw; _ }
+    modifier onlystatus(Status _status) { if (status != _status) throw; _ }
+    modifier onlycreator { if (msg.sender != createdBy) throw; _ }
 
-    event VoteCast(address motion, address who, bytes32 commitHash);
+    event VoteCast(address who, Choices vote);
 
     function setShareholderDB(address _address) public onlyowner;
+
+    function configure(uint _quorumSize, uint _duration, uint8 _passPercentage) public onlycreator onlystatus(Status.NeedsConfiguration);
+    function accept() public onlyowner onlystatus(Status.NeedsValidation);
+    function reject() public onlyowner onlystatus(Status.NeedsValidation);
 
     function castVote(Choices vote) public onlyshareholder onlystatus(Status.Open);
     function closeVoting() public onlyshareholder onlystatus(Status.Open);
@@ -81,17 +88,32 @@ contract MotionInterface is transferableInterface {
 
 
 contract Motion is transferable, MotionInterface {
-    function Motion(address _createdBy, address _executable, uint _duration, uint _quorumSize, uint8 passPercentage) {
+    function Motion(address _createdBy, address _executable) {
         createdAt = now;
         createdBy = _createdBy;
         executable = ExecutableInterface(_executable);
-        duration = _duration;
-        quorumSize = _quorumSize;
-        passPercentage = _passPercentage;
     }
 
     function setShareholderDB(address _address) public onlyowner {
         shareholderDB = ShareholderDBInterface(_address);
+    }
+
+    function configure(uint _quorumSize, uint _duration, uint8 _passPercentage) public onlycreator onlystatus(Status.NeedsConfiguration) {
+        quorumSize = _quorumSize;
+        duration = _duration;
+        passPercentage = _passPercentage;
+
+        status = Status.NeedsValidation;
+    }
+
+    function accept() public onlyowner onlystatus(Status.NeedsValidation) {
+        // Open it for voting.
+        status = Status.Open;
+    }
+
+    function reject() public onlyowner onlystatus(Status.NeedsValidation) {
+        // Put it back into configuration state.
+        status = Status.NeedsConfiguration;
     }
 
     function castVote(Choices vote) public onlyshareholder onlystatus(Status.Open) {
@@ -133,37 +155,9 @@ contract MotionFactory is transferable, FactoryBase {
     /*
      *  Voting Configuration
      */
-    uint public minimumDebateDuration;
-
-    function setMinimumDebateDuration(uint duration) public onlyowner {
-        minimumDebateDuration = duration;
-    }
-
-    function getMinimumDebateDuration(uint duration) constant returns (uint) {
-        return minimumDebateDuration;
-    }
-
-    uint public minimumQuorumSize;
-
-    function setMinimumQuorumSize(uint size) public onlyowner {
-        minimumQuorumSize = size;
-    }
-
-    function getMinimumQuorumSize(uint size) constant returns (uint) {
-        return minimumQuorumSize;
-    }
-
-    function createMotion(address _address, uint duration, uint quorumSize) public onlyshareholder {
-        // Voting period less than minimum duration.
-        if (duration < minimumDebateDuration) return;
-
-        // Quorum size less than minimum
-        if (quorumSize < minimumQuorumSize) return;
-
-        var motion = new Motion(msg.sender, _address, duration, quorumSize);
-
+    function deployMotionContract(address creator, address _address) internal returns (address) {
+        var motion = new Motion(msg.sender, _address);
         motion.transferOwnership(owner);
-
-        submitMotion(address(motion));
+        return address(motion);
     }
 }

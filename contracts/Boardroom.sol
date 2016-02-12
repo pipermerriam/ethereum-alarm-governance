@@ -4,13 +4,16 @@ import {transferableInterface, transferable} from "contracts/owned.sol";
 import {ProxyInterface} from "contracts/Proxy.sol";
 import {ShareholderDBInterface} from "contracts/ShareholderDB.sol";
 import {DividendDBInterface} from "contracts/ShareholderDB.sol";
+import {ValidatorInterface} from "contracts/Validator.sol";
 import {FactoryInterface} from "contracts/Factory.sol";
+import {MotionInterface} from "contracts/Motion.sol";
 
 
 contract BoardroomInterface is ProxyInterface {
     ShareholderDBInterface public shareholderDB;
     DividendDBInterface public dividendsDB;
     FactoryInterface public factory;
+    ValidatorInterface public validator;
 
     function setMinimumDebateDuration(uint duration) public onlyowner;
     function getMinimumDebateDuration(uint duration) constant returns (uint);
@@ -45,15 +48,26 @@ contract Boardroom is transferable, BoardroomInterface {
 
     GroveLib.Index motions;
 
-    function isKnownMotion(address _address) constant returns (address) {
+    function isKnownMotion(address _address) constant returns (bool) {
         return motions.exists(bytes32(_address));
     }
 
-    function submitMotion(address _address) public onlyfactory {
-        motions.insert(bytes32(_address));
+    function createMotion(address _address) public onlyfactory {
+        var motion = factory.buildMotionContract(msg.sender, _address);
+        motions.insert(bytes32(motion), int(block.number));
+    }
 
-        motion = MotionInterface(_address);
-        motion.setShareholderDB(address(shareholderDB));
+    function validateMotion(address _address) public onlyshareholder {
+        if (!motions.exists(bytes32(_address))) throw;
+
+        var motion = MotionInterface(_address);
+
+        if (validator.validateMotion(_address)) {
+            motion.accept();
+        }
+        else {
+            motion.reject();
+        }
     }
 
     function __proxy_motion(bytes call_data) public {
