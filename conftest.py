@@ -102,3 +102,18 @@ def get_log_data(deploy_client, contracts):
             )
         return event_data
     return _get_log_data
+
+
+@pytest.fixture
+def Status():
+    values = {
+        'NeedsConfiguration': 0,
+        'NeedsValidation': 1,
+        'Open': 2,
+        'Tally': 3,
+        'Passed': 4,
+        'Failed': 5,
+        'Executing': 6,
+        'Executed': 7,
+    }
+    return type("Status", (object,), values)
