@@ -115,7 +115,6 @@ def test_pass_percentage_must_be_less_than_100(deploy_contract, contracts,
 
     assert validator.minimumPassPercentage() == 0
 
-    with pytest.raises(TransactionFailed):
-        validator.setMinimumPassPercentage.s(99)
+    validator.setMinimumPassPercentage.s(99)
 
     assert validator.minimumPassPercentage() == 99
