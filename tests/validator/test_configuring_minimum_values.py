@@ -22,6 +22,19 @@ def test_configuring_quorum_minimum(deploy_contract, contracts, deploy_client,
     assert validator.minimumQuorum() == 54321
 
 
+def test_quorum_cannot_be_set_to_zero(deploy_contract, contracts, deploy_client,
+                                      accounts, get_log_data, deploy_coinbase,
+                                      Status):
+    validator = deploy_contract(contracts.Validator)
+
+    assert validator.minimumQuorum() == 12345
+
+    validator.setMinimumQuorum.s(54321)
+
+    with pytest.raises(TransactionFailed):
+        validator.setMinimumQuorum.s(0)
+
+
 def test_only_owner_can_set_quorum(deploy_contract, contracts, deploy_client,
                                    accounts, get_log_data, deploy_coinbase,
                                    Status):

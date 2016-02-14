@@ -1,6 +1,6 @@
 import {transferableInterface, transferable} from "contracts/owned.sol";
 import {FactoryBase} from "contracts/Factory.sol";
-import {ShareholderDBInterface} from "contracts/ShareholderDB.sol";
+import {ShareholderDBSubscriber, DelegatedShareholderDBSubscriber} from "contracts/ShareholderDBSubscriber.sol";
 
 
 contract ExecutableInterface is transferableInterface {
@@ -11,7 +11,8 @@ contract ExecutableInterface is transferableInterface {
     // The compile flags used during compilation.
     string public compilerFlags;
 
-    function execute() public onlyowner;
+    // TODO: this needs to be defined for how multi-step execution works.
+    function execute() public;
 }
 
 
@@ -19,7 +20,7 @@ contract ExecutableBase is transferable, ExecutableInterface {
 }
 
 
-contract MotionInterface is transferableInterface {
+contract MotionInterface is transferableInterface, ShareholderDBSubscriber {
     enum Choices {
         Yes,
         No,
@@ -65,15 +66,10 @@ contract MotionInterface is transferableInterface {
     Tally public noVotes;
     Tally public abstainVotes;
 
-    ShareholderDBInterface public shareholderDB;
-
-    modifier onlyshareholder { if (!shareholderDB.isShareholder(msg.sender)) throw; _ }
     modifier onlystatus(Status _status) { if (status != _status) throw; _ }
     modifier onlycreator { if (msg.sender != createdBy) throw; _ }
 
     event VoteCast(address who, Choices vote);
-
-    function setShareholderDB(address _address) public onlyowner;
 
     function configure(uint _quorumSize, uint _duration, uint8 _passPercentage, address _executable) public onlycreator onlystatus(Status.NeedsConfiguration);
     function accept() public onlyowner onlystatus(Status.NeedsValidation);
@@ -87,14 +83,10 @@ contract MotionInterface is transferableInterface {
 }
 
 
-contract Motion is transferable, MotionInterface {
+contract Motion is transferable, MotionInterface, DelegatedShareholderDBSubscriber {
     function Motion(address _createdBy) {
         createdAt = now;
         createdBy = _createdBy;
-    }
-
-    function setShareholderDB(address _address) public onlyowner {
-        shareholderDB = ShareholderDBInterface(_address);
     }
 
     function configure(uint _quorumSize, uint _duration, uint8 _passPercentage, address _executable) public onlycreator onlystatus(Status.NeedsConfiguration) {

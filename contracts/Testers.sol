@@ -17,6 +17,19 @@ contract DividendsDBTest is DividendDBBase {
 }
 
 
+contract ShareholderDBOwner {
+    address shareholderDB;
+
+    function setShareholderDB(address _address) public {
+        shareholderDB = _address;
+    }
+
+    function getShareholderDB() constant returns (address) {
+        return shareholderDB;
+    }
+}
+
+
 contract CallDataLogger {
     bool public wasCalled;
     address public msgSender;

@@ -2,7 +2,7 @@ import {GroveLib} from "libraries/GroveLib.sol";
 import {transferableInterface, transferable} from "contracts/owned.sol";
 import {MotionInterface} from "contracts/Motion.sol";
 import {FactoryInterface} from "contracts/Factory.sol";
-import {ShareholderDBSubscriber} from "contracts/ShareholderDBSubscriber.sol";
+import {ShareholderDBSubscriber, DelegatedShareholderDBSubscriber} from "contracts/ShareholderDBSubscriber.sol";
 import {ValidatorInterface} from "contracts/Validator.sol";
 
 
@@ -17,19 +17,12 @@ contract MotionDBInterface is transferableInterface, ShareholderDBSubscriber {
     function add(address _address) public onlyowner;
     function remove(address _address) public onlyowner;
     function exists(address _address) constant returns (bool);
-    function create() public onlyowner;
+    function create() public onlyshareholder;
     function validate(address _address) public onlyshareholder;
 }
 
 
-contract MotionDB is transferable, MotionDBInterface {
-    /*
-     *  ShareholderDBSubscriber
-     */
-    function getShareholderDB() constant returns (address) {
-        return ShareholderDBSubscriber(owner).getShareholderDB();
-    }
-
+contract MotionDB is transferable, MotionDBInterface, DelegatedShareholderDBSubscriber {
     /*
      *  Factory Management
      */

@@ -16,6 +16,7 @@ contract ValidatorInterface is transferableInterface {
 
 contract Validator is transferable, ValidatorInterface {
     function setMinimumQuorum(uint value) public onlyowner {
+        if (value == 0) throw;
         minimumQuorum = value;
     }
 
