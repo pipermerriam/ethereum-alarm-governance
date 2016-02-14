@@ -4,8 +4,8 @@ import {transferableInterface, transferable} from "contracts/owned.sol";
 contract FactoryInterface is transferableInterface {
     event Deployed(address addr);
 
-    function deployContract(address creator, address _address) public onlyowner returns (address);
-    function buildContract(address creator, address _address) internal returns (address);
+    function deployContract(address creator) public onlyowner returns (address);
+    function buildContract(address creator) internal returns (address);
 }
 
 
@@ -23,8 +23,8 @@ contract FactoryBase is transferable, FactoryInterface {
         compilerFlags = _compilerFlags;
     }
 
-    function deployContract(address creator, address _address) public onlyowner returns (address) {
-        var addr = buildContract(creator, _address);
+    function deployContract(address creator) public onlyowner returns (address) {
+        var addr = buildContract(creator);
         Deployed(addr);
         return addr;
     }

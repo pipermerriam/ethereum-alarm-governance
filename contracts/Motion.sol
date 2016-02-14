@@ -75,7 +75,7 @@ contract MotionInterface is transferableInterface {
 
     function setShareholderDB(address _address) public onlyowner;
 
-    function configure(uint _quorumSize, uint _duration, uint8 _passPercentage) public onlycreator onlystatus(Status.NeedsConfiguration);
+    function configure(uint _quorumSize, uint _duration, uint8 _passPercentage, address _executable) public onlycreator onlystatus(Status.NeedsConfiguration);
     function accept() public onlyowner onlystatus(Status.NeedsValidation);
     function reject() public onlyowner onlystatus(Status.NeedsValidation);
 
@@ -88,17 +88,17 @@ contract MotionInterface is transferableInterface {
 
 
 contract Motion is transferable, MotionInterface {
-    function Motion(address _createdBy, address _executable) {
+    function Motion(address _createdBy) {
         createdAt = now;
         createdBy = _createdBy;
-        executable = ExecutableInterface(_executable);
     }
 
     function setShareholderDB(address _address) public onlyowner {
         shareholderDB = ShareholderDBInterface(_address);
     }
 
-    function configure(uint _quorumSize, uint _duration, uint8 _passPercentage) public onlycreator onlystatus(Status.NeedsConfiguration) {
+    function configure(uint _quorumSize, uint _duration, uint8 _passPercentage, address _executable) public onlycreator onlystatus(Status.NeedsConfiguration) {
+        executable = ExecutableInterface(_executable);
         quorumSize = _quorumSize;
         duration = _duration;
         passPercentage = _passPercentage;
@@ -159,8 +159,8 @@ contract MotionFactory is transferable, FactoryBase {
              FactoryBase(_sourceURI, _compilerVersion, _compilerFlags) {
     }
 
-    function buildContract(address creator, address _address) internal returns (address) {
-        var motion = new Motion(msg.sender, _address);
+    function buildContract(address creator) internal returns (address) {
+        var motion = new Motion(msg.sender);
         motion.transferOwnership(owner);
         return address(motion);
     }

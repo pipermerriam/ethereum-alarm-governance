@@ -13,7 +13,7 @@ def test_motion_factory_transfers_ownership_on_creation(deploy_contract,
                                                         deploy_coinbase):
     factory = deploy_contract(contracts.MotionFactory)
 
-    txn_h, txn_r = factory.deployContract.s(accounts[2], accounts[3])
+    txn_h, txn_r = factory.deployContract.s(accounts[2])
 
     deploy_log_data = get_log_data(factory.Deployed, txn_h)
 

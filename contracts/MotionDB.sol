@@ -17,7 +17,7 @@ contract MotionDBInterface is transferableInterface, ShareholderDBSubscriber {
     function add(address _address) public onlyowner;
     function remove(address _address) public onlyowner;
     function exists(address _address) constant returns (bool);
-    function create(address _address) public onlyowner;
+    function create() public onlyowner;
     function validate(address _address) public onlyshareholder;
 }
 
@@ -50,13 +50,14 @@ contract MotionDB is transferable, MotionDBInterface {
 
     function transferValidator(address newOwner) public onlyowner {
         validator.transferOwnership(newOwner);
+        validator = ValidatorInterface(0x0);
     }
 
     /*
      *  Main API
      */
-    function create(address _address) public onlyshareholder {
-        var motion = factory.deployContract(msg.sender, _address);
+    function create() public onlyshareholder {
+        var motion = factory.deployContract(msg.sender);
         add(motion);
     }
 
