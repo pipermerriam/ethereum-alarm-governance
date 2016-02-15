@@ -20,6 +20,7 @@ def test_creating_a_motion(deploy_contract, contracts, deploy_client, accounts,
     motion = contracts.Motion(create_logs['addr'], deploy_client)
 
     assert motion.createdBy() == accounts[1]
+    assert motion.owner() == motion_db._meta.address
 
 
 def test_motion_creation_restricted_to_shareholders(deploy_contract, contracts,

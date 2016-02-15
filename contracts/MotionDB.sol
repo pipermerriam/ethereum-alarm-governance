@@ -1,18 +1,29 @@
 import {GroveLib} from "libraries/GroveLib.sol";
-import {transferableInterface, transferable} from "contracts/owned.sol";
+import {transferableInterface, transferable, ownerType, owner} from "contracts/owned.sol";
 import {MotionInterface} from "contracts/Motion.sol";
 import {FactoryInterface} from "contracts/Factory.sol";
-import {ShareholderDBSubscriber, DelegatedShareholderDBSubscriber} from "contracts/ShareholderDBSubscriber.sol";
 import {ValidatorInterface} from "contracts/Validator.sol";
+import {ShareholderDBInterface} from "contracts/ShareholderDB.sol";
 
 
-contract MotionDBInterface is transferableInterface, ShareholderDBSubscriber {
+contract MotionDBInterface is transferableInterface, ownerType {
     using GroveLib for GroveLib.Index;
 
     FactoryInterface public factory;
     ValidatorInterface public validator;
+    ShareholderDBInterface public shareholderDB;
 
     GroveLib.Index motions;
+
+    modifier onlyshareholder { 
+        if (address(shareholderDB) == 0x0) throw;
+        if (shareholderDB.isShareholder(msg.sender)) {
+            _
+        }
+        else {
+            throw;
+        }
+    }
 
     function add(address _address) public onlyowner;
     function remove(address _address) public onlyowner;
@@ -22,16 +33,12 @@ contract MotionDBInterface is transferableInterface, ShareholderDBSubscriber {
 }
 
 
-contract MotionDB is transferable, MotionDBInterface, DelegatedShareholderDBSubscriber {
+contract MotionDB is transferable, owner, MotionDBInterface {
     /*
      *  Factory Management
      */
     function setFactory(address _address) public onlyowner {
         factory = FactoryInterface(_address);
-    }
-
-    function transferFactory(address newOwner) public onlyowner {
-        factory.transferOwnership(newOwner);
     }
 
     /*
@@ -41,9 +48,11 @@ contract MotionDB is transferable, MotionDBInterface, DelegatedShareholderDBSubs
         validator = ValidatorInterface(_address);
     }
 
-    function transferValidator(address newOwner) public onlyowner {
-        validator.transferOwnership(newOwner);
-        validator = ValidatorInterface(0x0);
+    /*
+     *  ShareholderDB Management
+     */
+    function setShareholderDB(address _address) public onlyowner {
+        shareholderDB = ShareholderDBInterface(_address);
     }
 
     /*
@@ -60,12 +69,6 @@ contract MotionDB is transferable, MotionDBInterface, DelegatedShareholderDBSubs
 
     function remove(address _address) public onlyowner {
         motions.remove(bytes32(_address));
-    }
-
-    function transfer(address _address, address newOwner) public onlyowner {
-        if (!exists(_address)) throw;
-        var motion = MotionInterface(_address);
-        motion.transferOwnership(newOwner);
     }
 
     function exists(address _address) constant returns (bool) {

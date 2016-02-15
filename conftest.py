@@ -123,7 +123,8 @@ def Status():
 @pytest.fixture
 def deploy_constellation(deploy_contract, contracts, deploy_coinbase):
     def _deploy_constellation(dao_operator=deploy_coinbase,
-                              additional_shareholders=None):
+                              additional_shareholders=None,
+                              validation_minimums=None):
         boardroom = deploy_contract(contracts.Boardroom, from_address=dao_operator)
 
         shareholder_db = deploy_contract(
@@ -131,7 +132,7 @@ def deploy_constellation(deploy_contract, contracts, deploy_coinbase):
             constructor_args=(1000000,),
             from_address=dao_operator,
         )
-        dividend_db = deploy_contract(contracts.DividendDB, from_address=dao_operator)
+        dividend_db = deploy_contract(contracts.DividendDBTest, from_address=dao_operator)
         shareholder_db.addShareholder.s(dao_operator)
         if additional_shareholders is not None:
             for sh in additional_shareholders:
@@ -151,6 +152,22 @@ def deploy_constellation(deploy_contract, contracts, deploy_coinbase):
             from_address=dao_operator,
         )
 
+        if validation_minimums is not None:
+            quorum_size = validation_minimums.get('quorum_size')
+            debate_period = validation_minimums.get('debate_period')
+            pass_percentage = validation_minimums.get('pass_percentage')
+
+            if quorum_size is not None:
+                validator.setMinimumQuorum.s(quorum_size)
+
+            if debate_period is not None:
+                validator.setMinimumDebatePeriod.s(debate_period)
+
+            if pass_percentage is not None:
+                validator.setMinimumPassPercentage.s(pass_percentage)
+
+        motion_db.setShareholderDB(shareholder_db._meta.address)
+
         validator.transferOwnership.s(motion_db._meta.address, _from=dao_operator)
         motion_db.setValidator.s(validator._meta.address, _from=dao_operator)
 
@@ -164,6 +181,7 @@ def deploy_constellation(deploy_contract, contracts, deploy_coinbase):
         assert validator.owner() == motion_db._meta.address
         assert factory.owner() == motion_db._meta.address
         assert motion_db.owner() == boardroom._meta.address
+        assert motion_db.shareholderDB() == shareholder_db._meta.address
         assert shareholder_db.owner() == boardroom._meta.address
         assert dividend_db.owner() == boardroom._meta.address
 

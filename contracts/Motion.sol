@@ -1,10 +1,15 @@
 import {transferableInterface, transferable} from "contracts/owned.sol";
-import {ShareholderDBSubscriber, DelegatedShareholderDBSubscriber} from "contracts/ShareholderDBSubscriber.sol";
 import {FactoryBase} from "contracts/Factory.sol";
 import {ExecutableInterface} from "contracts/Executable.sol";
+import {ShareholderDBInterface} from "contracts/ShareholderDB.sol";
 
 
-contract MotionInterface is transferableInterface, ShareholderDBSubscriber {
+contract MotionOwnerInterface {
+    ShareholderDBInterface public shareholderDB;
+}
+
+
+contract MotionInterface is transferableInterface {
     enum Choices {
         Yes,
         No,
@@ -30,7 +35,6 @@ contract MotionInterface is transferableInterface, ShareholderDBSubscriber {
     // The percentage required for the vote to pass
     uint8 public passPercentage;
 
-
     ExecutableInterface public executable;
 
     // state
@@ -52,6 +56,18 @@ contract MotionInterface is transferableInterface, ShareholderDBSubscriber {
 
     modifier onlystatus(Status _status) { if (status != _status) throw; _ }
     modifier onlycreator { if (msg.sender != createdBy) throw; _ }
+    modifier onlyshareholder { 
+        ShareholderDBInterface shareholderDB = MotionOwnerInterface(owner).shareholderDB();
+
+        if (address(shareholderDB) == 0x0) throw;
+
+        if (shareholderDB.isShareholder(msg.sender)) {
+            _
+        }
+        else {
+            throw;
+        }
+    }
 
     event VoteCast(address who, Choices vote);
 
@@ -67,7 +83,7 @@ contract MotionInterface is transferableInterface, ShareholderDBSubscriber {
 }
 
 
-contract Motion is transferable, MotionInterface, DelegatedShareholderDBSubscriber {
+contract Motion is transferable, MotionInterface {
     function Motion(address _createdBy) {
         createdAt = now;
         createdBy = _createdBy;

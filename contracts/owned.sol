@@ -22,3 +22,15 @@ contract transferable is transferableInterface {
         OwnershipTransfer(msg.sender, to);
     }
 }
+
+
+contract ownerType is owned {
+    function setOwner(address who, address to) public onlyowner;
+}
+
+
+contract owner is ownerType {
+    function setOwner(address who, address to) public onlyowner {
+        transferableInterface(who).transferOwnership(to);
+    }
+}

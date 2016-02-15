@@ -2,17 +2,17 @@ import {transferableInterface, transferable} from "contracts/owned.sol";
 import {ERC20} from "contracts/ERC20.sol";
 
 
-contract WalletInterface is transferableInterface, ERC20 {
+contract WalletType is transferableInterface, ERC20 {
     event Deposit(address indexed from, address indexed to, uint value);
     event Withdrawl(address indexed by, address indexed to, uint value);
 
-    function deposit(address indexed to) public requirevalue returns (bool ok);
+    function deposit(address to) public returns (bool ok);
     function withdraw(address to, uint value) public returns (bool ok);
-    function withdrawFrom(address from, address to, uint value) returns (bool ok) {
+    function withdrawFrom(address from, address to, uint value) returns (bool ok);
 }
 
 
-contract Wallet is transferable {
+contract Wallet is transferable, WalletType {
     mapping (address => uint) balances;
     mapping (address => mapping (address => uint)) allowances;
 
