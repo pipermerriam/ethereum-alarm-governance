@@ -51,7 +51,7 @@ contract MotionDB is transferable, MotionDBInterface, DelegatedShareholderDBSubs
      */
     function create() public onlyshareholder {
         var motion = factory.deployContract(msg.sender);
-        add(motion);
+        motions.insert(bytes32(motion), int(block.number));
     }
 
     function add(address _address) public onlyowner {

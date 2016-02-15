@@ -1,13 +1,14 @@
 import {transferableInterface, transferable} from "contracts/owned.sol";
-import {ProxyInterface} from "contracts/Proxy.sol";
+import {ProxyInterface, Proxy} from "contracts/Proxy.sol";
 import {ShareholderDBInterface} from "contracts/ShareholderDB.sol";
 import {ShareholderDBSubscriber} from "contracts/ShareholderDBSubscriber.sol";
+import {DividendDBSubscriber} from "contracts/DividendDBSubscriber.sol";
 import {MotionDBSubscriber} from "contracts/MotionDBSubscriber.sol";
 import {DividendDBInterface} from "contracts/ShareholderDB.sol";
 import {MotionDBInterface} from "contracts/MotionDB.sol";
 
 
-contract BoardroomInterface is ProxyInterface, ShareholderDBSubscriber, MotionDBSubscriber {
+contract BoardroomInterface is ProxyInterface, ShareholderDBSubscriber, MotionDBSubscriber, DividendDBSubscriber {
     ShareholderDBInterface public shareholderDB;
     DividendDBInterface public dividendsDB;
     MotionDBInterface public motionDB;
@@ -26,7 +27,7 @@ contract BoardroomInterface is ProxyInterface, ShareholderDBSubscriber, MotionDB
 }
 
 
-contract Boardroom is transferable, BoardroomInterface {
+contract Boardroom is transferable, Proxy, BoardroomInterface {
     /*
      *  Database management
      */
@@ -48,6 +49,10 @@ contract Boardroom is transferable, BoardroomInterface {
 
     function transferDividendDB(address newOwner) public onlyowner {
         dividendsDB.transferOwnership(newOwner);
+    }
+
+    function getDividendDB() constant returns (address) {
+        return dividendsDB;
     }
 
     function setMotionDB(address _address) public onlyowner {

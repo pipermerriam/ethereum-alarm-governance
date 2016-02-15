@@ -7,7 +7,7 @@ def deploy_contract(deploy_client, contracts):
         deploy_contracts,
     )
 
-    def _deploy_contract(ContractClass, constructor_args=None):
+    def _deploy_contract(ContractClass, constructor_args=None, from_address=None):
         if constructor_args is not None:
             constructor_args = {
                 ContractClass.__name__: constructor_args,
@@ -17,6 +17,7 @@ def deploy_contract(deploy_client, contracts):
             contracts=contracts,
             contracts_to_deploy=[ContractClass.__name__],
             constructor_args=constructor_args,
+            from_address=None,
         )
 
         contract = getattr(deployed_contracts, ContractClass.__name__)
@@ -117,3 +118,62 @@ def Status():
         'Executed': 7,
     }
     return type("Status", (object,), values)
+
+
+@pytest.fixture
+def deploy_constellation(deploy_contract, contracts, deploy_coinbase):
+    def _deploy_constellation(dao_operator=deploy_coinbase,
+                              additional_shareholders=None):
+        boardroom = deploy_contract(contracts.Boardroom, from_address=dao_operator)
+
+        shareholder_db = deploy_contract(
+            contracts.ShareholderDB,
+            constructor_args=(1000000,),
+            from_address=dao_operator,
+        )
+        dividend_db = deploy_contract(contracts.DividendDB, from_address=dao_operator)
+        shareholder_db.addShareholder.s(dao_operator)
+        if additional_shareholders is not None:
+            for sh in additional_shareholders:
+                shareholder_db.addShareholder.s(sh)
+
+        shareholder_db.transferOwnership.s(boardroom._meta.address, _from=dao_operator)
+        boardroom.setShareholderDB.s(shareholder_db._meta.address, _from=dao_operator)
+
+        dividend_db.transferOwnership.s(boardroom._meta.address, _from=dao_operator)
+        boardroom.setDividendDB.s(dividend_db._meta.address, _from=dao_operator)
+
+        motion_db = deploy_contract(contracts.MotionDB, from_address=dao_operator)
+        validator = deploy_contract(contracts.Validator, from_address=dao_operator)
+        factory = deploy_contract(
+            contracts.MotionFactory,
+            constructor_args=("ipfs://example", "1.2.3", "--example"),
+            from_address=dao_operator,
+        )
+
+        validator.transferOwnership.s(motion_db._meta.address, _from=dao_operator)
+        motion_db.setValidator.s(validator._meta.address, _from=dao_operator)
+
+        factory.transferOwnership.s(motion_db._meta.address, _from=dao_operator)
+        motion_db.setFactory.s(factory._meta.address, _from=dao_operator)
+
+        motion_db.transferOwnership.s(boardroom._meta.address, _from=dao_operator)
+        boardroom.setMotionDB.s(motion_db._meta.address, _from=dao_operator)
+
+        # sanity checks
+        assert validator.owner() == motion_db._meta.address
+        assert factory.owner() == motion_db._meta.address
+        assert motion_db.owner() == boardroom._meta.address
+        assert shareholder_db.owner() == boardroom._meta.address
+        assert dividend_db.owner() == boardroom._meta.address
+
+        values = {
+            'shareholder_db': shareholder_db,
+            'dividend_db': dividend_db,
+            'motion_db': motion_db,
+            'validator': validator,
+            'factory': factory,
+            'boardroom': boardroom,
+        }
+        return type("constellation", (object,), values)
+    return _deploy_constellation

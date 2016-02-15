@@ -21,3 +21,4 @@ def test_motion_factory_transfers_ownership_on_creation(deploy_contract,
     motion = contracts.MotionInterface(motion_addr, deploy_client)
 
     assert motion.owner() == deploy_coinbase
+    assert motion.createdBy() == accounts[2]

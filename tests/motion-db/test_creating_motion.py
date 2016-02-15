@@ -1,30 +1,37 @@
-
 import pytest
 
 from ethereum.tester import TransactionFailed
 
 
-deploy_contracts = [
-    "ShareholderDBOwner"
-]
-
-
-EMPTY_ADDRESS = "0x0000000000000000000000000000000000000000"
+deploy_contracts = []
 
 
 def test_creating_a_motion(deploy_contract, contracts, deploy_client, accounts,
-                           get_log_data, deploy_coinbase, Status):
-    motion_db = deploy_contract(contracts.MotionDB)
-    validator = deploy_contract(contracts.Validator)
-    factory = deploy_contract(
-        contracts.MotionFactory,
-        constructor_args=("ipfs://example", "1.2.3", "--example"),
-    )
+                           get_log_data, deploy_coinbase, Status,
+                           deployed_contracts, deploy_constellation):
+    constellation = deploy_constellation(additional_shareholders=accounts[1:2])
 
-    validator.transferOwnership.s(motion_db._meta.address)
-    motion_db.setValidator.s(validator._meta.address)
+    factory = constellation.factory
+    motion_db = constellation.motion_db
 
-    factory.transferOwnership.s(motion_db._meta.address)
-    motion_db.setFactory(factory._meta.address)
+    create_txn_h, create_txn_r = motion_db.create.s(_from=accounts[1])
+    create_logs = get_log_data(factory.Deployed, create_txn_h)
 
-    assert motion_db.validator() == validator._meta.address
+    motion = contracts.Motion(create_logs['addr'], deploy_client)
+
+    assert motion.createdBy() == accounts[1]
+
+
+def test_motion_creation_restricted_to_shareholders(deploy_contract, contracts,
+                                                    deploy_client, accounts,
+                                                    get_log_data,
+                                                    deploy_coinbase,
+                                                    deploy_constellation):
+    constellation = deploy_constellation()
+
+    motion_db = constellation.motion_db
+
+    assert constellation.shareholder_db.isShareholder(accounts[1]) is False
+
+    with pytest.raises(TransactionFailed):
+        motion_db.create.s(_from=accounts[1])

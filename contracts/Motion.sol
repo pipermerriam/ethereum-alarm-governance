@@ -1,23 +1,7 @@
 import {transferableInterface, transferable} from "contracts/owned.sol";
-import {FactoryBase} from "contracts/Factory.sol";
 import {ShareholderDBSubscriber, DelegatedShareholderDBSubscriber} from "contracts/ShareholderDBSubscriber.sol";
-
-
-contract ExecutableInterface is transferableInterface {
-    // The URI where the source code for this contract can be found.
-    string public sourceURI;
-    // The compiler version used to compile this contract.
-    string public compilerVersion;
-    // The compile flags used during compilation.
-    string public compilerFlags;
-
-    // TODO: this needs to be defined for how multi-step execution works.
-    function execute() public;
-}
-
-
-contract ExecutableBase is transferable, ExecutableInterface {
-}
+import {FactoryBase} from "contracts/Factory.sol";
+import {ExecutableInterface} from "contracts/Executable.sol";
 
 
 contract MotionInterface is transferableInterface, ShareholderDBSubscriber {
@@ -152,7 +136,7 @@ contract MotionFactory is transferable, FactoryBase {
     }
 
     function buildContract(address creator) internal returns (address) {
-        var motion = new Motion(msg.sender);
+        var motion = new Motion(creator);
         motion.transferOwnership(owner);
         return address(motion);
     }
